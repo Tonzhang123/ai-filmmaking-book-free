@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>電影 AI：AI 驅動電影製作 — 免費試讀版</title>
+<style>
+:root{
+  --ink:#1a1712; --ink-2:#4a4238; --muted:#7d7266;
+  --paper:#f6f1e7; --paper-2:#fffdf8;
+  --gold:#b8862f; --gold-2:#e0b25f;
+  --accent:#c96a2b; --line:#ded4c2;
+  --bg-1:#14100c; --bg-2:#241c14;
+  --sans:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Hiragino Sans GB",system-ui,-apple-system,sans-serif;
+  --serif:"Noto Serif TC","Songti TC","SimSun",Georgia,serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--sans);color:var(--ink);
+  background:radial-gradient(1200px 700px at 50% -10%, #3a2d1f 0%, transparent 60%),
+             linear-gradient(180deg,var(--bg-1) 0%,var(--bg-2) 45%, #191308 100%);
+  background-attachment:fixed;min-height:100vh;-webkit-font-smoothing:antialiased;
+}
+img{display:block;max-width:100%}
+
+/* ---------- top bar ---------- */
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:14px;
+  padding:12px clamp(14px,3vw,34px);background:rgba(14,11,8,.82);
+  backdrop-filter:blur(14px);border-bottom:1px solid rgba(224,178,95,.18);}
+.topbar .mark{width:34px;height:34px;flex:0 0 34px;border-radius:8px;display:grid;place-items:center;
+  background:linear-gradient(145deg,var(--gold-2),var(--gold));color:#1a140c;font-weight:800;font-size:13px;}
+.topbar .ttl{font-family:var(--serif);font-size:15px;color:#f0e4cd;letter-spacing:.04em}
+.topbar .ttl small{display:block;font-size:10.5px;color:#9d8c74;letter-spacing:.16em;text-transform:uppercase}
+.topbar .spacer{flex:1}
+.topbar a.jump{font-size:12px;color:#c9b998;text-decoration:none;padding:6px 13px;
+  border:1px solid rgba(224,178,95,.28);border-radius:99px;transition:.25s;white-space:nowrap;}
+.topbar a.jump:hover{background:rgba(224,178,95,.14);color:#f5e6c8;border-color:var(--gold)}
+.lang{display:flex;gap:4px;background:rgba(255,255,255,.04);border:1px solid rgba(224,178,95,.22);
+  border-radius:99px;padding:3px}
+.lang button{appearance:none;border:0;background:transparent;color:#b9a687;font-size:12px;
+  padding:4px 11px;border-radius:99px;cursor:pointer;font-family:var(--sans);transition:.2s}
+.lang button.on{background:var(--gold);color:#1a140c;font-weight:600}
+
+/* ---------- stage ---------- */
+.stage{position:relative;padding:clamp(28px,6vh,66px) 16px clamp(36px,7vh,72px);
+  display:flex;flex-direction:column;align-items:center;}
+.stage::before{content:"";position:absolute;inset:0;
+  background:radial-gradient(ellipse 70% 55% at 50% 42%, rgba(201,106,43,.13), transparent 70%);pointer-events:none;}
+.hd{position:relative;text-align:center;max-width:760px;margin-bottom:clamp(20px,4vh,40px);padding:14px 18px 0}
+.hd h1{font-family:var(--serif);font-weight:700;font-size:clamp(28px,5.2vw,52px);line-height:1.14;color:#f7ecd8;letter-spacing:.02em}
+.hd h1 em{font-style:normal;color:var(--gold-2)}
+.hd .sub{margin-top:12px;color:#a9977e;font-size:clamp(12.5px,1.6vw,15px);letter-spacing:.06em}
+.hd .rule{width:74px;height:2px;margin:22px auto 0;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+
+/* =========================================================
+   BOOK  —  real two-sided sheet model
+   ========================================================= */
+.book-wrap{position:relative;z-index:2;width:100%;max-width:1120px;perspective:2600px}
+.book{position:relative;width:100%;max-width:1120px;margin:0 auto;
+  aspect-ratio:2/1.419;transform-style:preserve-3d;}
+.book::after{content:"";position:absolute;left:2%;right:2%;bottom:-26px;height:44px;
+  background:radial-gradient(ellipse at 50% 0%, rgba(0,0,0,.55), transparent 70%);filter:blur(9px);z-index:-1;}
+.leftbg{position:absolute;left:0;top:0;width:50%;height:100%;z-index:0;
+  background:linear-gradient(155deg,#f1e9d8 0%, #e6dac2 100%);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);}
+.leaves{position:absolute;inset:0;transform-style:preserve-3d}
+.leaf{position:absolute;top:0;left:50%;width:50%;height:100%;
+  transform-origin:left center;transform-style:preserve-3d;
+  transition:transform 1s cubic-bezier(.62,.03,.32,1);will-change:transform;}
+.leaf.flipped{transform:rotateY(-180deg);}
+.face{position:absolute;inset:0;overflow:hidden;background:var(--paper-2);
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;transform-style:preserve-3d;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.08);}
+.face img{width:100%;height:100%;object-fit:cover;object-position:top center;opacity:0;transition:opacity .5s ease}
+.face img.loaded{opacity:1}
+.face.back{transform:rotateY(180deg)}
+.leaf:not(.flipped) .face.front{box-shadow:inset 18px 0 26px -20px rgba(0,0,0,.5)}
+.leaf.flipped     .face.back {box-shadow:inset -18px 0 26px -20px rgba(0,0,0,.5)}
+.face.blank{background:linear-gradient(155deg,#efe7d6,#f6f1e7)}
+.face.endcard{display:flex;align-items:center;justify-content:center;background:linear-gradient(155deg,#f4ecdc,#e7dcc6)}
+.endcard .ec-in{text-align:center;padding:26px;color:#5a4d3a;max-width:84%}
+.endcard .ec-ey{font-size:10px;letter-spacing:.34em;color:var(--gold);display:block;margin-bottom:15px}
+.endcard h4{font-family:var(--serif);font-size:clamp(19px,2.8vw,25px);color:#2a2118;margin-bottom:14px}
+.endcard p{font-size:13px;line-height:1.85;color:#6b5d48}
+.endcard .ec-sub{margin-top:16px;color:#9a8a6e;font-size:12px}
+.spine{position:absolute;left:50%;top:0;bottom:0;width:54px;transform:translateX(-50%);
+  pointer-events:none;z-index:50;
+  background:linear-gradient(90deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.10) 38%,rgba(0,0,0,.26) 50%,
+    rgba(0,0,0,.10) 62%,rgba(0,0,0,0) 100%);opacity:.55;}
+.spine::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(0,0,0,.2);transform:translateX(-50%);}
+
+/* ---------- controls ---------- */
+.ctrl{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:26px;flex-wrap:wrap}
+.btn{appearance:none;border:1px solid rgba(224,178,95,.34);background:rgba(224,178,95,.09);color:#efdcb8;
+  width:46px;height:46px;border-radius:50%;cursor:pointer;display:grid;place-items:center;transition:.25s;font-size:19px;}
+.btn:hover:not(:disabled){background:var(--gold);color:#1a140c;border-color:var(--gold);transform:translateY(-2px)}
+.btn:disabled{opacity:.26;cursor:not-allowed}
+.counter{font-family:var(--serif);font-size:14px;color:#c7b491;letter-spacing:.1em;min-width:104px;text-align:center}
+.counter b{color:var(--gold-2);font-size:17px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:20px}
+.tab{appearance:none;cursor:pointer;border:1px solid rgba(224,178,95,.22);background:rgba(255,255,255,.03);
+  color:#b9a687;font-size:12px;padding:7px 15px;border-radius:99px;transition:.22s}
+.tab:hover{border-color:var(--gold);color:#f0dcae}
+.tab.on{background:var(--gold);border-color:var(--gold);color:#1a140c;font-weight:600}
+.hint{margin-top:16px;font-size:12px;color:#8c7c66;letter-spacing:.06em;text-align:center}
+.hint kbd{background:rgba(255,255,255,.07);border:1px solid rgba(224,178,95,.22);border-radius:5px;
+  padding:1px 7px;font-size:11px;color:#c9b391}
+.endnote{margin:22px auto 0;max-width:620px;text-align:center;font-size:13px;color:#8f7f68;line-height:1.75;
+  border-top:1px solid rgba(224,178,95,.16);padding-top:18px;display:none}
+
+/* ---------- intro ---------- */
+.intro{position:relative;z-index:2;background:linear-gradient(180deg,#191308 0%, var(--paper) 12%);
+  padding:clamp(40px,7vw,90px) clamp(16px,5vw,60px) clamp(50px,8vw,100px);}
+.wrap{max-width:1080px;margin:0 auto}
+.isechd{text-align:center;margin-bottom:clamp(26px,4vw,44px)}
+.isechd .eyebrow{display:inline-block;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--accent);margin-bottom:12px;font-weight:700}
+.isechd h2{font-family:var(--serif);font-size:clamp(23px,3.6vw,36px);color:var(--ink);letter-spacing:.02em}
+.isechd .rule{width:66px;height:2px;margin:16px auto 0;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+.lead{font-family:var(--serif);font-size:clamp(15.5px,1.9vw,19px);line-height:1.95;color:var(--ink-2);
+  max-width:790px;margin:0 auto clamp(30px,4.5vw,52px);text-align:center}
+.lead .hl{color:var(--accent);font-weight:600}
+.grid{display:grid;gap:clamp(14px,2vw,22px);grid-template-columns:repeat(auto-fit,minmax(230px,1fr));margin-bottom:clamp(30px,4.5vw,52px)}
+.card{background:var(--paper-2);border:1px solid var(--line);border-radius:14px;padding:24px 22px;transition:.3s}
+.card:hover{transform:translateY(-4px);box-shadow:0 16px 34px -16px rgba(60,40,15,.38);border-color:#cdb98f}
+.card .no{font-family:var(--serif);font-size:13px;color:var(--gold);letter-spacing:.18em;font-weight:700}
+.card h3{font-family:var(--serif);font-size:19px;margin:8px 0 10px;color:var(--ink)}
+.card p{font-size:13.8px;line-height:1.85;color:var(--ink-2)}
+.card ul{margin-top:10px;padding-left:17px;font-size:13.3px;line-height:1.85;color:var(--ink-2)}
+.card li{margin-bottom:4px}
+.card li b{color:var(--ink)}
+.meta{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;
+  grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-bottom:clamp(30px,4.5vw,50px)}
+.meta div{background:var(--paper-2);padding:19px 22px}
+.meta dt{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+.meta dd{font-family:var(--serif);font-size:15.5px;color:var(--ink);line-height:1.6}
+.meta dd span{font-family:var(--sans);font-size:12.5px;color:var(--muted);display:block;margin-top:3px}
+.chap{background:var(--paper-2);border:1px solid var(--line);border-radius:14px;padding:clamp(24px,3.5vw,38px)}
+.chap h3{font-family:var(--serif);font-size:21px;margin-bottom:20px;color:var(--ink);display:flex;align-items:center;gap:11px}
+.chap h3::before{content:"";width:4px;height:22px;border-radius:2px;background:var(--gold)}
+.chap h3 small{font-family:var(--sans);font-size:11.5px;color:var(--muted);letter-spacing:.14em;font-weight:400}
+.clist{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.clist .row{background:var(--paper-2);display:grid;grid-template-columns:62px 1fr auto;gap:14px;align-items:center;padding:13px 18px;transition:.2s}
+.clist .row:hover{background:#fbf6ec}
+.clist .row .n{font-family:var(--serif);font-size:13px;color:var(--gold);font-weight:700}
+.clist .row .t{font-size:14px;color:var(--ink);font-weight:500}
+.clist .row .t i{font-style:normal;display:block;font-size:11.5px;color:var(--muted);font-weight:400;margin-top:2px}
+.clist .row .p{font-family:var(--serif);font-size:13px;color:var(--muted);white-space:nowrap}
+.chap .note{margin-top:16px;font-size:12.5px;color:var(--muted);line-height:1.8}
+.quote{margin-top:clamp(30px,4.5vw,50px);border-left:3px solid var(--gold);padding:8px 0 8px 26px;
+  font-family:var(--serif);font-size:clamp(15px,2vw,19px);line-height:1.95;color:var(--ink-2);max-width:820px}
+.quote footer{margin-top:12px;font-family:var(--sans);font-size:12px;color:var(--muted);letter-spacing:.1em}
+.quote cite{font-style:normal;color:var(--accent)}
+
+/* ---------- gallery: bookstore photos ---------- */
+.gallery{position:relative;z-index:2;background:var(--paper);border-top:1px solid var(--line);
+  padding:clamp(46px,7vw,96px) clamp(16px,5vw,60px) clamp(54px,8vw,104px)}
+.gal-lead{font-family:var(--serif);font-size:clamp(15px,1.9vw,18.5px);line-height:1.95;color:var(--ink-2);
+  max-width:780px;margin:0 auto clamp(28px,4vw,46px);text-align:center}
+.gal-lead i{font-style:italic}
+.gal-grid{display:grid;gap:clamp(12px,1.6vw,18px);grid-template-columns:repeat(3,1fr)}
+.gal-item{position:relative;margin:0;padding:0;overflow:hidden;border-radius:14px;
+  border:1px solid var(--line);background:var(--paper-2);aspect-ratio:4/3;cursor:zoom-in;
+  transition:transform .32s ease,box-shadow .32s ease,border-color .32s ease}
+.gal-item:hover{transform:translateY(-4px);box-shadow:0 18px 38px -18px rgba(60,40,15,.42);border-color:#cdb98f}
+.gal-item:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.gal-item img{width:100%;height:100%;object-fit:cover;transition:transform .7s ease}
+.gal-item:hover img{transform:scale(1.06)}
+.gal-item .cap{position:absolute;left:0;right:0;bottom:0;pointer-events:none;text-align:left;
+  padding:34px 16px 14px;
+  background:linear-gradient(180deg,rgba(10,7,4,0) 0%,rgba(10,7,4,.78) 58%,rgba(10,7,4,.93) 100%)}
+.gal-item .cap b{display:block;font-family:var(--serif);font-size:14.5px;color:#f7ecd8;
+  font-weight:700;letter-spacing:.01em;margin-bottom:4px}
+.gal-item .cap .gzh{display:block;font-size:12.3px;line-height:1.62;color:#e4d6bd}
+.gal-item .cap .gen{display:none;font-size:12.3px;line-height:1.62;color:#e4d6bd}
+body.lang-en .gal-item .cap .gzh{display:none}
+body.lang-en .gal-item .cap .gen{display:block}
+.gal-item.feat{grid-column:span 2;grid-row:span 2;aspect-ratio:auto}
+.gal-item.feat .cap{padding:56px 24px 22px}
+.gal-item.feat .cap b{font-size:18px;margin-bottom:6px}
+.gal-item.feat .cap .gzh,body.lang-en .gal-item.feat .cap .gen{font-size:13.5px}
+.gal-hint{margin-top:22px;text-align:center;font-size:11.5px;color:var(--muted);letter-spacing:.08em}
+
+/* ---------- lightbox ---------- */
+.lb{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;
+  background:rgba(8,6,4,.93);padding:clamp(16px,4vw,48px);cursor:zoom-out}
+.lb.open{display:flex}
+.lb figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:14px;
+  max-width:min(1240px,92vw);animation:lbIn .3s ease}
+.lb img{max-width:100%;max-height:74vh;width:auto;height:auto;object-fit:contain;
+  border-radius:8px;border:1px solid rgba(224,178,95,.22);background:#14100c}
+.lb figcaption{color:#e4d6bd;font-size:13px;line-height:1.75;text-align:center;max-width:720px}
+.lb figcaption b{display:block;font-family:var(--serif);font-size:16px;color:#f7ecd8;margin-bottom:5px}
+.lb-close{position:absolute;top:16px;right:20px;width:42px;height:42px;border-radius:50%;
+  background:rgba(255,255,255,.07);border:1px solid rgba(224,178,95,.28);color:#f0e4cd;
+  font-size:22px;line-height:1;cursor:pointer;transition:.25s;font-family:var(--sans)}
+.lb-close:hover{background:rgba(224,178,95,.2);border-color:var(--gold-2)}
+@keyframes lbIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+@media(max-width:900px){
+  .gal-grid{grid-template-columns:repeat(2,1fr)}
+  .gal-item.feat{grid-column:span 2;grid-row:span 1;aspect-ratio:16/9}
+}
+@media(max-width:560px){
+  .gal-grid{grid-template-columns:1fr}
+  .gal-item.feat{grid-column:span 1;aspect-ratio:4/3}
+}
+
+footer.site{background:var(--paper);border-top:1px solid var(--line);padding:26px 20px;text-align:center;
+  font-size:12px;color:var(--muted);letter-spacing:.08em;line-height:1.9}
+footer.site b{color:var(--ink-2);font-weight:600}
+
+/* ---------- language toggle display ---------- */
+.zh{display:inline}
+.en{display:none}
+body.lang-en .zh{display:none}
+body.lang-en .en{display:inline}
+body.lang-en .zh-block{display:none}
+body.lang-en .en-block{display:block}
+.zh-block{display:block}
+.en-block{display:none}
+
+@media (max-width:760px){
+  .book{aspect-ratio:1/1.419}
+  .leftbg{display:none}
+  .leaf{width:100%;left:0;transform-origin:center center}
+  .leaf.flipped{transform:rotateY(-180deg)}
+  .spine{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="mark">AI</div>
+  <div class="ttl">電影 AI：AI 驅動電影製作<small>AI-Driven Filmmaking · 免費試讀版</small></div>
+  <div class="spacer"></div>
+  <a class="jump" href="#intro"><span class="zh">書籍介紹 ↓</span><span class="en">About ↓</span></a>
+  <div class="lang" id="lang">
+    <button data-l="zh" class="on">中文</button>
+    <button data-l="en">EN</button>
+  </div>
+</div>
+
+<section class="stage">
+  <div class="hd">
+    <h1>電影 AI：<br><em>AI 驅動電影製作</em></h1>
+    <div class="sub"><span class="zh">免費試讀版 — 序言 · 目錄 · 緒論</span><span class="en">Free Reading Edition — Preface · Contents · Introduction</span></div>
+    <div class="rule"></div>
+  </div>
+
+  <div class="book-wrap">
+    <div class="book" id="book">
+      <div class="leftbg"></div>
+      <div class="leaves" id="leaves"></div>
+      <div class="spine"></div>
+    </div>
+
+    <div class="ctrl">
+      <button class="btn" id="prev" aria-label="上一頁">‹</button>
+      <div class="counter"><b id="cur">1</b> / <span id="tot">11</span></div>
+      <button class="btn" id="next" aria-label="下一頁">›</button>
+    </div>
+
+    <div class="tabs" id="tabs"></div>
+
+    <p class="hint"><span class="zh">點擊書頁右半部翻到下一頁 · 左半部回到上一頁 · 或使用 <kbd>←</kbd> <kbd>→</kbd> 鍵</span><span class="en">Click the right half to turn forward · left half to go back · or use <kbd>←</kbd> <kbd>→</kbd> keys</span></p>
+
+    <p class="endnote" id="endnote">
+      <span class="zh">以上為《電影 AI：AI 驅動電影製作》免費試讀版，收錄封面、編者自序、完整目錄與第一章〈緒論〉。<br>全書共八章，完整工作流從 AI 劇本創作延伸至 AI 輔助分銷。</span>
+      <span class="en">The above is the Free Reading Edition of AI-Driven Filmmaking — cover, editors' preface, full table of contents, and Chapter 1 (Introduction).<br>The complete book spans eight chapters, from AI scriptwriting to AI-assisted distribution.</span>
+    </p>
+  </div>
+</section>
+
+<section class="intro" id="intro">
+  <div class="wrap">
+    <div class="isechd">
+      <div class="eyebrow"><span class="zh">關於本書</span><span class="en">About the Book</span></div>
+      <h2><span class="zh">關於本書</span><span class="en">About This Book</span></h2>
+      <div class="rule"></div>
+    </div>
+
+    <!-- ===================== CHINESE ===================== -->
+    <div class="zh-block" id="body-zh">
+      <p class="lead">
+        <span class="hl">《電影 AI：AI 驅動電影製作》</span>是一本由香港科技大學藝術與機器創造力學部師生共同完成的實踐型讀物。
+        它不把 AI 寫成一套按一下按鈕就能取代創作者的魔法，而是把鏡頭前真實的猶疑、試探與掙扎攤開來看——
+        <span class="hl">當工具已能生成像素，人類還剩下什麼？</span>
+        本試讀版收錄編者自序、完整目錄與第一章〈緒論〉；全書共八章，完整工作流從劇本延伸至分銷。
+      </p>
+
+      <div class="meta">
+        <div><dt>書名</dt><dd>電影 AI：AI 驅動電影製作<span>AI-Driven Filmmaking</span></dd></div>
+        <div><dt>主編</dt><dd>張天熠（香港科技大學） · 劉雨晴（香港大學）<span>徐嫻（嶺南大學） · 饒安逸（香港科技大學）</span></dd></div>
+        <div><dt>出版</dt><dd>聯合電子出版社<span>United Electronic Press</span></dd></div>
+        <div><dt>試讀</dt><dd>序言 · 目錄 · 緒論<span>Free preview</span></dd></div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <div class="no">01 / 定位</div>
+          <h3>不是工具手冊，是一張航海圖</h3>
+          <p>編者在序言中寫道，全書所記錄的「是一群創作者在新技術面前的猶豫與試探，以及猶豫之後的立場與選擇」。每一章都從真實的製作現場出發，而非從功能列表出發。</p>
+        </div>
+        <div class="card">
+          <div class="no">02 / 方法</div>
+          <h3>三個維度的一致性</h3>
+          <p>全書提出可操作的視覺工作流，以「從腦海到螢幕」為主軸：</p>
+          <ul>
+            <li><b>角色</b>：建立三視圖、鎖定形象、生成表情與動態模組</li>
+            <li><b>場景</b>：拆解空間、固定座標與種子值、獲取不同視角</li>
+            <li><b>光影</b>：鏡頭語言、光學質感模擬、色彩科學與框架構圖</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="no">03 / 核心命題</div>
+          <h3>原創性究竟身在何方</h3>
+          <p>書中反覆回到同一個問題：在算法的縫隙裏，原創性的邊界究竟身在何方？作者提醒讀者——技術會持續迭代，但觀察世界的獨特視角與捕捉靈感的敏銳感知，才是永不褪色的核心競爭力。</p>
+        </div>
+        <div class="card">
+          <div class="no">04 / 入門路徑</div>
+          <h3>緒論提供的歷史座標</h3>
+          <p>第一章從 1896 年盧米埃爾兄弟的《火車進站》講起，串起默片、類型片的黃金年代與數位新浪潮，指出電影史始終與技術演進同頻共振——AI 只是這條長軸上最新的一格。</p>
+        </div>
+      </div>
+
+      <div class="chap">
+        <h3>全書章節架構 <small>EIGHT CHAPTERS · 69 PAGES</small></h3>
+        <div class="clist">
+          <div class="row"><div class="n">序言</div><div class="t">編者自序<i>技術轉折處，作者與學生們的定位與選擇</i></div><div class="p">IV–VIII</div></div>
+          <div class="row"><div class="n">目錄</div><div class="t">Contents<i>八章完整導覽與頁碼索引</i></div><div class="p">—</div></div>
+          <div class="row"><div class="n">第一章</div><div class="t">緒論<i>電影史的技術座標與 AI 的位置</i></div><div class="p">1–11</div></div>
+          <div class="row"><div class="n">第二章</div><div class="t">AI 劇本創作<i>LLM 敘事理解、Character Bible 與提示詞實操</i></div><div class="p">13–21</div></div>
+          <div class="row"><div class="n">第三章</div><div class="t">AI 視覺設計<i>一致性原則、分鏡實戰、視聽語言與鏡頭控制</i></div><div class="p">15–46</div></div>
+          <div class="row"><div class="n">第四章</div><div class="t">AI 視頻生成與創作方式<i>風格遷移、智能轉描、運動幅度與模型能力邊界</i></div><div class="p">47–62</div></div>
+          <div class="row"><div class="n">第五章</div><div class="t">AI 聲音<i>對白生成、配樂、混音與聲音修復</i></div><div class="p">63–79</div></div>
+          <div class="row"><div class="n">第六章</div><div class="t">AI 剪輯<i>素材缺陷診斷、敘事重塑與輔助分銷</i></div><div class="p">83–</div></div>
+          <div class="row"><div class="n">第七章</div><div class="t">AI 前沿探究<i>新興模型、工作流整合與產業趨勢</i></div><div class="p">99–</div></div>
+          <div class="row"><div class="n">第八章</div><div class="t">AI 倫理<i>版權、原創性邊界與創作者責任</i></div><div class="p">111–</div></div>
+        </div>
+        <p class="note">本免費試讀版完整收錄：編者自序（IV–VIII）、目錄，以及第一章〈緒論〉；其餘章節敬請參閱全書。</p>
+      </div>
+
+      <blockquote class="quote">
+        「這不僅僅是一部冷冰冰的技術手冊，它更像是一張航海圖。書中的每一位探索者，都在用具體的實踐去追問：<cite>在算法的縫隙裏，原創性的邊界究竟身在何方？</cite>」
+        <footer>— 編者自序</footer>
+      </blockquote>
+    </div>
+
+    <!-- ===================== ENGLISH ===================== -->
+    <div class="en-block" id="body-en">
+      <p class="lead">
+        <span class="hl">AI-Driven Filmmaking</span> is a hands-on volume co-created by faculty and students of the
+        Division of Arts and Machine Creativity, Hong Kong University of Science and Technology.
+        It refuses to frame AI as one-click magic that replaces creators; instead it lays bare the genuine
+        hesitation, experimentation, and struggle in front of the lens —
+        <span class="hl">when tools can already generate pixels, what is left for the human?</span>
+        This Free Reading Edition reproduces the editors' preface, the full table of contents, and Chapter 1 (Introduction); the complete book spans eight chapters, from scriptwriting to distribution.
+      </p>
+
+      <div class="meta">
+        <div><dt>Title</dt><dd>電影 AI：AI 驅動電影製作<span>AI-Driven Filmmaking</span></dd></div>
+        <div><dt>Editors</dt><dd>Zhang Tianyi (HKUST) · Liu Yuqing (HKU)<span>Xu Xian (Lingnan University) · Rao Anyi (HKUST)</span></dd></div>
+        <div><dt>Published by</dt><dd>Sino United Electronic Publishing Ltd.<span>聯合電子出版社</span></dd></div>
+        <div><dt>Preview</dt><dd>Preface · Contents · Intro<span>Free sample</span></dd></div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <div class="no">01 / POSITIONING</div>
+          <h3>Not a tool manual, but a nautical chart</h3>
+          <p>In the preface the editors write that the book records "a group of creators' hesitation and probing before a new technology, and the stance and choices they make after the hesitation." Every chapter begins on a real production floor, not a feature checklist.</p>
+        </div>
+        <div class="card">
+          <div class="no">02 / METHOD</div>
+          <h3>Consistency across three dimensions</h3>
+          <p>The book proposes an actionable visual workflow built around "from mind to screen":</p>
+          <ul>
+            <li><b>Character</b>: build turnaround sheets, lock the look, generate expression &amp; motion modules</li>
+            <li><b>Scene</b>: decompose space, fix coordinates and seed values, acquire multiple viewpoints</li>
+            <li><b>Light</b>: lens language, optical-texture simulation, color science, and framing composition</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="no">03 / CORE QUESTION</div>
+          <h3>Where exactly does originality live?</h3>
+          <p>The book keeps returning to the same question: in the seams of the algorithm, where lies the boundary of originality? The authors remind readers that technology keeps iterating, but the unique way of observing the world and the keen sensitivity to capture inspiration are the core competitiveness that never fades.</p>
+        </div>
+        <div class="card">
+          <div class="no">04 / ENTRY POINT</div>
+          <h3>The historical coordinates of the Introduction</h3>
+          <p>Chapter One opens with the Lumière brothers' "Arrival of a Train" in 1896, threading through the golden age of silent film and genre cinema and the digital new wave, pointing out that film history has always resonated with technological evolution — AI is merely the latest frame on that long axis.</p>
+        </div>
+      </div>
+
+      <div class="chap">
+        <h3>Book Structure <small>EIGHT CHAPTERS · 69 PAGES</small></h3>
+        <div class="clist">
+          <div class="row"><div class="n">Pref.</div><div class="t">Editors' Prefaces<i>positioning and choices at a technological turning point</i></div><div class="p">IV–VIII</div></div>
+          <div class="row"><div class="n">TOC</div><div class="t">Contents<i>a full eight-chapter tour with a page index</i></div><div class="p">—</div></div>
+          <div class="row"><div class="n">Ch.1</div><div class="t">Introduction<i>the technological coordinates of film history and where AI stands</i></div><div class="p">1–11</div></div>
+          <div class="row"><div class="n">Ch.2</div><div class="t">AI Scriptwriting<i>LLM narrative comprehension, Character Bible, prompt engineering in practice</i></div><div class="p">13–21</div></div>
+          <div class="row"><div class="n">Ch.3</div><div class="t">AI Visual Design<i>consistency principles, storyboard practice, audiovisual language, camera control</i></div><div class="p">15–46</div></div>
+          <div class="row"><div class="n">Ch.4</div><div class="t">AI Video Generation<i>style transfer, intelligent rotoscoping, motion amplitude, limits of model capability</i></div><div class="p">47–62</div></div>
+          <div class="row"><div class="n">Ch.5</div><div class="t">AI Sound<i>dialogue generation, scoring, mixing, and sound restoration</i></div><div class="p">63–79</div></div>
+          <div class="row"><div class="n">Ch.6</div><div class="t">AI Editing<i>footage defect diagnosis, narrative reshaping, assisted distribution</i></div><div class="p">83–</div></div>
+          <div class="row"><div class="n">Ch.7</div><div class="t">AI Frontier<i>emerging models, workflow integration, and industry trends</i></div><div class="p">99–</div></div>
+          <div class="row"><div class="n">Ch.8</div><div class="t">AI Ethics<i>copyright, the boundary of originality, and the creator's responsibility</i></div><div class="p">111–</div></div>
+        </div>
+        <p class="note">This Free Reading Edition fully reproduces the editors' preface (IV–VIII), the table of contents, and Chapter 1 (Introduction). The remaining chapters appear in the complete book.</p>
+      </div>
+
+      <blockquote class="quote">
+        "It is not merely a cold technical manual; it is more like a nautical chart. Every explorer in this book uses concrete practice to ask: <cite>in the seams of the algorithm, where exactly lies the boundary of originality?</cite>"
+        <footer>— Editors' Preface</footer>
+      </blockquote>
+    </div>
+  </div>
+</section>
+
+<section class="gallery" id="gallery">
+  <div class="wrap">
+    <div class="isechd">
+      <div class="eyebrow"><span class="zh">書店實拍</span><span class="en">In the Bookstore</span></div>
+      <h2><span class="zh">本書已在書店上架</span><span class="en">Now on Bookstore Shelves</span></h2>
+      <div class="rule"></div>
+    </div>
+
+    <p class="gal-lead">
+      <span class="zh-block">《電影 AI：AI 驅動電影製作》由聯合電子出版社出版，現已在書店上架與陳列。以下為實地拍攝，記錄本書走進書店、進入電影與藝術書架，與其他讀物並列的樣子。</span>
+      <span class="en-block">Published by Sino United Electronic Publishing, <i>AI-Driven Filmmaking</i> is now on sale and on display in bookshops. The photographs below record the book on the shelf, taking its place among the cinema and art titles it now sits beside.</span>
+    </p>
+
+    <div class="gal-grid">
+      <figure class="gal-item feat">
+        <img src="assets/photos/shelf-display.jpg" alt="書店書架上正面朝外陳列的《AI 驅動電影製作》，下方書架排滿本書書脊" loading="lazy" decoding="async">
+        <figcaption class="cap">
+          <b><span class="zh">正面陳列</span><span class="en">Face-out display</span></b>
+          <span class="gzh">封面朝外陳列於書店書架，與《鐵道香港》等新書並列；下層書架排滿了本書的書脊。</span>
+          <span class="gen">The cover faces out on the shop shelf beside other new titles, with a full row of our spines on the shelf below.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="gal-item">
+        <img src="assets/photos/shop-window.jpg" alt="書店入口展示櫃，本書與其他新書一同陳列" loading="lazy" decoding="async">
+        <figcaption class="cap">
+          <b><span class="zh">書店展示櫃</span><span class="en">Shop display</span></b>
+          <span class="gzh">本書進入書店入口的展示櫃，與《阿誠貫》《暗花列》等同期新書一同上架。</span>
+          <span class="gen">The book reaches the shop's front display, shelved alongside other new arrivals.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="gal-item">
+        <img src="assets/photos/shelf-window.jpg" alt="靠窗的高書架上多層陳列《AI 驅動電影製作》" loading="lazy" decoding="async">
+        <figcaption class="cap">
+          <b><span class="zh">靠窗書架</span><span class="en">By the window</span></b>
+          <span class="gzh">靠窗的高書架上多層陳列，封面與書脊都能見到本書。</span>
+          <span class="gen">Displayed across several tiers on the tall shelf by the window — cover and spines alike.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="gal-item">
+        <img src="assets/photos/film-shelf.jpg" alt="電影書架上，《AI 驅動電影製作》與其他電影讀物並列" loading="lazy" decoding="async">
+        <figcaption class="cap">
+          <b><span class="zh">電影書架</span><span class="en">The cinema shelf</span></b>
+          <span class="gzh">在電影書架上與《閱讀電影與電影》系列、《閱讀電影》《光影心象》等並列，找到了自己的位置。</span>
+          <span class="gen">Taking its place on the cinema shelf, among the Reading Film series and other film titles.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="gal-item">
+        <img src="assets/photos/book-stack.jpg" alt="二十本《AI 驅動電影製作》並排站立，書脊上有四位主編的署名" loading="lazy" decoding="async">
+        <figcaption class="cap">
+          <b><span class="zh">一整排的書</span><span class="en">A row of copies</span></b>
+          <span class="gzh">二十本《AI 驅動電影製作：從理論到實踐》並排而立，四位主編的署名清晰可見。</span>
+          <span class="gen">Twenty copies of AI-Driven Filmmaking standing side by side, the four editors' names on every spine.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="gal-item">
+        <img src="assets/photos/art-section.jpg" alt="書店「藝術」分類的書架櫃位" loading="lazy" decoding="async">
+        <figcaption class="cap">
+          <b><span class="zh">藝術分類書架</span><span class="en">In the art section</span></b>
+          <span class="gzh">書店「藝術」分類的書架櫃位——AI 與電影的交叉，正好落在此處。</span>
+          <span class="gen">A place in the store's art section — where AI and cinema overlap.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="gal-item">
+        <img src="assets/photos/sci-shelf.jpg" alt="「科學知識」分類的高書架，本書封面被手持於書架前" loading="lazy" decoding="async">
+        <figcaption class="cap">
+          <b><span class="zh">科學知識書架</span><span class="en">The science shelf</span></b>
+          <span class="gzh">在「科學知識」分類的高書架前手持本書——從 AI 生成到電影製作，本書恰好站在科學與藝術的交界處。</span>
+          <span class="gen">Holding the book in front of the tall science-knowledge shelf — from AI generation to filmmaking, it stands exactly where science meets art.</span>
+        </figcaption>
+      </figure>
+    </div>
+
+    <p class="gal-hint"><span class="zh">點擊照片可放大查看</span><span class="en">Click any photo to enlarge</span></p>
+  </div>
+</section>
+
+<footer class="site">
+  <b>AI-Driven Filmmaking · 電影 AI：AI 驅動電影製作</b><br>
+  <span class="zh">張天熠（香港科技大學）、劉雨晴（香港大學）、徐嫻（嶺南大學）、饒安逸（香港科技大學） 主編 · 香港科技大學藝術與機器創造力學部</span>
+  <span class="en">Edited by Zhang Tianyi (HKUST), Liu Yuqing (HKU), Xu Xian (Lingnan University), Rao Anyi (HKUST) · Division of Arts and Machine Creativity, Hong Kong University of Science and Technology</span>
+</footer>
+
+<div class="lb" id="lightbox" role="dialog" aria-modal="true" aria-label="照片檢視 Photo viewer">
+  <button class="lb-close" type="button" aria-label="關閉 Close">&times;</button>
+  <figure>
+    <img class="lb-img" src="" alt="">
+    <figcaption><b class="lb-title"></b><span class="lb-text"></span></figcaption>
+  </figure>
+</div>
+
+<script>
+/* ---------------------------------------------------------------
+   Leaf model — free reading edition (20 book pages, p01..p20)
+   The source PDF is laid out as landscape double-page spreads;
+   each spread was split at the gutter into single portrait pages.
+   --------------------------------------------------------------- */
+const PAGES = [];
+for(let i=1;i<=20;i++){ PAGES.push('assets/p'+String(i).padStart(2,'0')+'.png'); }
+
+/* Section markers (bilingual) → spread index where each begins. */
+const SECTIONS = [
+  {zh:'封面',  en:'Cover',    spread:0},
+  {zh:'序言',  en:'Preface',  spread:1},
+  {zh:'目錄',  en:'Contents', spread:3},
+  {zh:'緒論',  en:'Intro',    spread:6}
+];
+
+const SHEETS = [];
+for(let i=0;i<PAGES.length;i+=2){ SHEETS.push({ front:PAGES[i], back: PAGES[i+1] ?? null }); }
+const END = { type:'endcard' };
+const N = SHEETS.length + 1;   // 10 sheets + 1 endcard = 11 spreads
+
+const leavesEl = document.getElementById('leaves');
+const btnPrev  = document.getElementById('prev');
+const btnNext  = document.getElementById('next');
+const elCur    = document.getElementById('cur');
+const elTot    = document.getElementById('tot');
+const tabsEl   = document.getElementById('tabs');
+const endnote  = document.getElementById('endnote');
+const bookEl   = document.getElementById('book');
+
+function mkFace(spec, isBack){
+  const f = document.createElement('div');
+  f.className = 'face' + (isBack ? ' back' : '');
+  if(spec === null){ f.classList.add('blank'); }
+  else if(spec.type === 'endcard'){
+    f.classList.add('endcard');
+    f.innerHTML = '<div class="ec-in"><span class="ec-ey">FREE PREVIEW</span>'+
+      '<h4>免費試讀結束</h4>'+
+      '<p>感謝您試讀《電影 AI：AI 驅動電影製作》。<br>本試讀版收錄序言、目錄與第一章〈緒論〉。</p>'+
+      '<p class="ec-sub">全書共八章 · 聯合電子出版社 出版</p></div>';
+  } else {
+    const im = new Image();
+    im.dataset.src = spec; im.alt = ''; im.loading = 'lazy';
+    im.addEventListener('load', ()=> im.classList.add('loaded'));
+    f.appendChild(im);
+  }
+  return f;
+}
+const leaves = [];
+SHEETS.forEach((sh,i)=>{
+  const el=document.createElement('div'); el.className='leaf';
+  el.appendChild(mkFace(sh.front,false));
+  el.appendChild(mkFace(sh.back,true));
+  leavesEl.appendChild(el);
+  leaves.push({el, flipped:false, base:(SHEETS.length-i)});
+});
+{
+  const el=document.createElement('div'); el.className='leaf';
+  el.appendChild(mkFace(END,false));
+  el.appendChild(mkFace(null,true));
+  leavesEl.appendChild(el);
+  leaves.push({el, flipped:false, base:1});
+}
+
+/* lazy loading — only fetch images near the current spread */
+function loadLeaf(i){
+  const lf=leaves[i]; if(!lf) return;
+  lf.el.querySelectorAll('img[data-src]').forEach(im=>{ if(!im.src){ im.src = im.dataset.src; } });
+}
+function loadNear(c){
+  for(let i=Math.max(0,c-3); i<=Math.min(leaves.length-1, c+4); i++) loadLeaf(i);
+}
+
+let idx=0, busy=false;
+function applyZ(){ leaves.forEach((lf,i)=>{ lf.el.style.zIndex = lf.flipped ? i : lf.base; }); }
+applyZ();
+function flipLeaf(i,toFlipped){
+  const lf=leaves[i]; if(lf.flipped===toFlipped) return;
+  lf.el.style.zIndex=leaves.length+5;
+  if(toFlipped) lf.el.classList.add('flipped'); else lf.el.classList.remove('flipped');
+  lf.flipped=toFlipped; setTimeout(applyZ,1010);
+}
+function go(next){
+  if(busy||next<0||next>=N) return;
+  busy=true;
+  if(next>idx){ for(let i=idx;i<next;i++) flipLeaf(i,true); }
+  else { for(let i=next;i<idx;i++) flipLeaf(i,false); }
+  idx=next; sync(); setTimeout(()=>{busy=false;},1020);
+}
+function sectionOf(idx){
+  let s=0;
+  for(let i=0;i<SECTIONS.length;i++){ if(SECTIONS[i].spread<=idx) s=i; }
+  return s;
+}
+function sync(){
+  elCur.textContent=idx+1; elTot.textContent=N;
+  btnPrev.disabled=idx===0; btnNext.disabled=idx===N-1;
+  endnote.style.display=idx===N-1?'block':'none';
+  const s=sectionOf(idx);
+  [...tabsEl.children].forEach((t,i)=> t.classList.toggle('on', i===s));
+  loadNear(idx);
+}
+function buildTabs(){
+  const arr=SECTIONS.map(o=> document.body.classList.contains('lang-en') ? o.en : o.zh);
+  tabsEl.innerHTML='';
+  arr.forEach((label,i)=>{ const b=document.createElement('button'); b.className='tab'; b.textContent=label; b.addEventListener('click',()=>go(SECTIONS[i].spread)); tabsEl.appendChild(b); });
+  sync();
+}
+btnNext.addEventListener('click',()=>go(idx+1));
+btnPrev.addEventListener('click',()=>go(idx-1));
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key==='PageDown'){e.preventDefault();go(idx+1);}
+  if(e.key==='ArrowLeft' ||e.key==='PageUp'){e.preventDefault();go(idx-1);}
+});
+bookEl.addEventListener('click',e=>{ const r=e.currentTarget.getBoundingClientRect(); if(e.clientX-r.left>r.width/2) go(idx+1); else go(idx-1); });
+(function(){
+  let x0=null;
+  bookEl.addEventListener('mousedown',e=>{x0=e.clientX;});
+  window.addEventListener('mouseup',e=>{ if(x0===null) return; const dx=e.clientX-x0; if(Math.abs(dx)>55) go(dx<0?idx+1:idx-1); x0=null; });
+  let tx=null;
+  bookEl.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;},{passive:true});
+  bookEl.addEventListener('touchend',e=>{ if(tx===null) return; const dx=e.changedTouches[0].clientX-tx; if(Math.abs(dx)>50) go(dx<0?idx+1:idx-1); tx=null; },{passive:true});
+})();
+
+/* language toggle */
+document.getElementById('lang').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  const l=b.dataset.l;
+  document.body.classList.toggle('lang-en', l==='en');
+  [...document.getElementById('lang').children].forEach(x=>x.classList.toggle('on', x.dataset.l===l));
+  buildTabs();
+  if(window.__lbFill) window.__lbFill();
+});
+
+buildTabs();
+loadNear(0);
+
+/* ---------------------------------------------------------------
+   Gallery lightbox — enlarge a bookstore photo
+   --------------------------------------------------------------- */
+(function(){
+  const lb = document.getElementById('lightbox');
+  if(!lb) return;
+  const lbImg   = lb.querySelector('.lb-img');
+  const lbTitle = lb.querySelector('.lb-title');
+  const lbText  = lb.querySelector('.lb-text');
+  const lbClose = lb.querySelector('.lb-close');
+  let current = null;
+
+  function fill(){
+    if(!current) return;
+    const useEn = document.body.classList.contains('lang-en');
+    const img = current.querySelector('img');
+    lbImg.src = img.currentSrc || img.src;
+    lbImg.alt = img.alt;
+    const t = current.querySelector('.cap b ' + (useEn ? '.en' : '.zh'));
+    lbTitle.textContent = t ? t.textContent : '';
+    const c = current.querySelector(useEn ? '.gen' : '.gzh');
+    lbText.textContent = c ? c.textContent : '';
+  }
+  function open(fig){
+    current = fig; fill();
+    lb.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    lbClose.focus();
+  }
+  function close(){
+    lb.classList.remove('open');
+    document.body.style.overflow = '';
+    current = null;
+  }
+  document.querySelectorAll('.gal-item').forEach(function(fig){
+    fig.setAttribute('tabindex','0');
+    fig.setAttribute('role','button');
+    fig.addEventListener('click', function(){ open(fig); });
+    fig.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); open(fig); }
+    });
+  });
+  lb.addEventListener('click', function(e){ if(e.target === lb) close(); });
+  lbClose.addEventListener('click', close);
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && lb.classList.contains('open')) close();
+  });
+  window.__lbFill = fill;   /* language toggle refreshes an open lightbox */
+})();
+</script>
+</body>
+</html>
